@@ -1,0 +1,168 @@
+CS 214 / 2023-02-08
+===================
+
+Recommendation: use make to manage compilation
+
+Create a Makefile
+-> describes a dependency graph
+
+idea: to create one file, we must have certain other files
+-> all files must be "up to date"
+
+to bring a file up to date:
+    1. bring all dependencies up to date
+        if we have a rule for a dependency, we check its dependencies
+        otherwise, we do nothing
+    2. check the modification times of target and dependencies
+    3. if the dependencies are newer than the target, execute the recipe
+        (or if the target does not exist)
+    
+a rule has:
+    a target (usually a file name)
+    zero or more dependencies (almost always file names)
+    a recipe (zero or more Unix commands)
+    (recipe is always indented with a single tab [not spaces])
+    
+
+
+program: main.o lib.o
+	gcc -o program main.o lib.o
+    
+main.o: main.c lib.h
+	gcc -c main.c
+    
+lib.o: lib.c lib.h
+	gcc -c lib.c
+
+clean:
+	rm -f program *.o
+    
+----
+
+standard variables
+    $@ - current target
+    $^ - list of dependencies
+    $< - first dependency
+
+----
+
+CC = gcc
+CFLAGS = -g -std=c99 -Wall -fsanitize=address,undefined
+
+program: main.o lib.o
+	$(CC) $(CFLAGS) -o $@ $^
+    
+main.o: main.c lib.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+lib.o: lib.c lib.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+    
+----
+
+CC = gcc
+CFLAGS = -g -std=c99 -Wall -fsanitize=address,undefined
+
+program: main.o lib.o
+	$(CC) $(CFLAGS) -o $@ $^
+
+%.o: %.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+main.o: lib.h
+lib.c: lib.h
+
+
+# % patterns act as wildcards; % is replaced by the same text in
+# the target and the dependency list
+
+# rules with no recipe add dependencies
+
+
+----
+
+
+static char memory[MEMSIZE];
+
+
+{
+
+    void *p = memory;
+
+    int *q = (int *) memory;
+    
+
+}
+
+
+---
+
+Use -Dmacro=value to define a macro when compiling
+
+e.g., gcc -DDEBUG=1
+
+equivalently: gcc -DDEBUG
+
+
+in your code:
+
+    #ifndef DEBUG
+    
+    #define DEBUG 0
+    
+    #endif
+
+
+
+#define nonnull(P) \
+    if ((P) == NULL) { \
+        fprintf(stderr, "malloc()[%s:%d]: %s\n", \
+            __FILE__, __LINE__, strerror(errno)); \
+        exit(EXIT_FAILURE); \
+    }
+    
+int *p = malloc(LENGTH * sizeof(int));
+nonnull(p)
+        
+----
+
+Function pointers
+-----------------
+
+all code lives in memory
+everything in memory has an address
+-> we can talk about the address of a function
+
+
+compare function prototype
+
+    int compare(int, int);
+    
+function pointer variable
+    
+    int (*compare)(int, int);
+    
+compare is a pointer to a function that takes two ints and returns int
+    
+
+int comp1(int, int);
+int comp2(int, int);
+
+{
+    compare = comp1;
+        // a function name by itself is a pointer to that function
+        
+        
+    compare(x, y);
+        // anything that evaluates to a function pointer can be
+        // called like a function
+}
+    
+    
+we can fake object-oriented programming in C using function pointers
+    C++ started out as a C preprocessor!
+
+we can write generic code (e.g., sort) using function pointers
+    
+    
+    

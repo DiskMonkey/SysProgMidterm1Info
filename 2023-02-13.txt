@@ -1,0 +1,144 @@
+CS 214 / 2023-02-13
+===================
+
+in memgrind.h:
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+
+
+#ifndef REALMALLOC
+#include "mymalloc.h"
+#endif
+
+--
+
+gcc -DREALMALLOC memgrind.c -o testmemgrind
+
+----
+
+
+Files
+-----
+
+A file in C (and Unix) is a stream of bytes
+    previous systems represented files as sequences of records
+-> byte stream can be more work for database-like files, but is more
+    flexible
+
+Unix generalized the file concept to work with all byte streams
+file abstraction used for
+    - actual files on disk
+    - console input/output
+    - other IO devices
+    - inter-process communication (IPC)
+    - network communication
+
+there are some important difference between these
+    - some streams are read-only or write-only
+    - some streams represent persistant files (have random access)
+
+C has two sets of file functions
+
+Functions provided by C language standard
+    fopen, fclose, fread, fwrite, fscanf, fprintf
+    work with FILE *
+    buffered
+    
+Functions provided by POSIX operating system standards
+    open, close, read, write
+    work with file descriptors
+    not buffered
+    lower-level
+    more general
+    
+
+a file descriptor is... a integer
+    somewhere in your program's memory is a table representing all the
+        open files
+        -> co-managed by operating system and run-time system
+    file descriptor is an index into that table
+    typically:
+        standard input 0
+        standard output 1
+        standard error 2
+        
+    fileno() returns a file descriptor associated with a FILE 
+    
+    fdopen() creates a FILE for a given file descriptor
+    
+
+buffering
+    the FILE struct contains an array of bytes (the buffer)
+    functions like fprintf, putc, etc. write into that buffer
+    when the buffer is full, the contents are sent to the OS using write
+        ("draining" or "flushing" the buffer)
+        fflush() forces flushing the buffer
+    
+    
+I/O involves system calls
+    -> operating system functionality
+    requires a context switch
+    
+    low-level functions like read and write are thin wrappers around
+        system calls
+        -> calling them frequently will slow down your program
+        
+    putc() is buffered
+        -> chars are written to the FILE buffer
+        -> putc() calls write() when the buffer is full
+    potentially hundreds of system calls are consolidated into a single call
+    
+the C functions have buffering built-in (provided by FILE)
+the POSIX functions make you do your own buffering
+
+
+
+
+int open(char *pathname, int flags)
+
+    flags is one of
+        O_RDONLY
+        O_WRONLY
+        O_RDWR
+        
+    possibly combined with other info
+        O_CREAT (requires a third argument)
+        O_TRUNC
+
+fd = open("some_file", O_RDONLY);
+if (fd == -1) {
+    // we couldn't open the file
+}
+
+fd = open("output_file", O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    // open the file
+    // if it does not exist, create it with user read-write permissions 
+    // if it does exist, delete (truncate) its contents
+
+
+
+ssize_t read(int fd, void *buf, size_t count);
+
+    read obtains up to count bytes from the specified fd and
+    writes those bytes to buf
+    
+    read() returns the number of bytes read
+    
+read() will usually block until data becomes available
+
+note that read obtains *up to* the number of bytes requested
+- you might be at the end of the stream
+- input may be coming in slowly
+
+read returns 0 if the stream has closed/ended
+    -> if no data is available, but the stream is still open, read blocks
+        until data arrives
+read returns -1 on error
+
+in general, you always have to check how many bytes read obtained
+
+
+

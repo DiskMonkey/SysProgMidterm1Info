@@ -1,0 +1,193 @@
+CS 214 / 2023-02-27
+===================
+
+Midterm exam will be on Wednesday, March 8
+Midterm review will be Wednesday, March 1
+Project II is due March 27
+
+Review:
+    inodes vs data nodes
+        every file has one inode (metadata)
+        many data nodes (data)
+        
+        inode uses a combination of direct and indirect links to data nodes
+            -> quick access, regardless of the file length
+            -> small, fixed inode size
+            -> allowing for very large files (thousands or millions of data nodes)
+
+    directory tree
+        a directory is a list of files (names + inode number)
+        a root directory exists at a known location
+            every other directory is a child of some other directory
+            the root directory is just called "/"
+        
+        a file that is referenced by a directory is "linked"
+            -> every directory is linked at least twice
+                (it links to itself in the entry ".")
+                (its parent links to it)
+                (any subdirectories will link to it via "..")
+                 -> the root is considered its own parent
+
+    paths and path names
+        tells where to find a file by giving a sequence of directories
+            /first/second/third/file
+            
+        paths starting with / are "absolute" (they begin at the root)
+        
+        other paths are "relative" (they start... somewhere)
+        
+        -> usually, relative paths start from a "working directory"
+        
+            foo (means "foo" in the working directory)
+            foo/bar (means "bar" in "foo" in the working directory)
+            .   (means the working directory)
+            ..  (parent of the working directory)
+            
+Aside: in the shell, the first word can be a name or a path (containing a /)
+    paths are relative to the working directory
+    the shell looks for names in a set list of directories (the "search path")
+    -> to execute a file in the working directory, we use ./file_name
+        ./ because we need to include a /, and we want a child of the working directory
+
+    -> the distinction is for security/safety
+        if I type "rm", I want to know I'm getting the real one
+
+-> note
+    "x/../y/../z" is generally the same as just "z"
+    
+    we can usually remove sequences like "x/.." or "." from the middle of paths
+    
+soft link vs hard link
+
+    soft link is a special file that contains a path to another file
+        -> does not change if original file is deleted or moved or replaced
+    hard link is just additional links to a file
+        -> all hard links to a file are equally real
+        -> deleting a file just unlinks it -- the file survives until all links are removed
+
+testing for file existence
+
+-> how can we tell if a given path refers to a file?
+    e.g., how does the shell know where to find "ls"
+    
+let's say we want to check whether /usr/bin/ls exists
+- we could open the directory and iterate until we find ls
+
+    #include <dirent.h>
+    ...
+
+    DIR *dp = opendir("/usr/bin")
+    if (dp == NULL) { ... }
+    struct dirent *de;
+    while ((de = readdir(dp)) != NULL) {
+        // check whether de->d_name is "ls"
+        if (strcmp(de->d_name, "ls") == 0) { ... }
+    }
+    closedir(dp);
+
+    -> note that opendir internally has to open / and /usr to get to /usr/bin
+
+- we could use stat() to see if the file exists
+
+    struct stat sb;  // a "stat block" containing information about the file
+    
+    int r = stat("/usr/bin/ls", &sb);
+    if (r == -1) { ... we couldn't access the file ... }
+
+- we could just try to open it
+    
+    int fd = open("/usr/bin/ls", O_RDONLY);
+    if (fd == -1) { ... we couldn't access it ... }
+    
+    close(fd);
+    
+it is usually sufficient to let the run-time/operating system deal with resolving paths
+
+
+working directory
+-----------------
+
+a "current directory" that we are "in"
+    in the shell, we check using pwd
+    we change it using cd
+
+-> primarily a convenience: we can use relative paths instead of absolute paths
+
+we can query and change the working directory within a program
+
+int chdir(char *pathname);
+
+    -> changes the working directory to the specified path (relative or absolute)
+    
+    returns 0 if successful
+    returns -1 and sets errno on failure
+    
+imagine we wanted to open all the files in a given directory:
+    we would need to use opendir() to traverse the directory
+        -> but these names are relative to that directory
+    to open the files inside, we can:
+        combine the directory path with the file's name to get a path to the file
+        or, first chdir() to the directory we are traversing
+        
+    e.g., we want to open the files in foo/bar
+        1. opendir("foo/bar")
+            obtain a file name like "baz"
+            open("foo/bar/baz")    <- requires us to assemble a path
+
+        2. chdir("foo/bar")
+            opendir(".")
+            obtain a file name like "baz"
+            open("baz")
+
+
+char *getcwd(char *buf, size_t size);
+
+    writes current working directory into buf (up to size characters)
+    
+    returns buf itself on success, or NULL on failure (e.g., if the path is too long)
+    
+    (if getcwd fails due to length, just call it again with a bigger buffer)
+    
+    sadly, PATH_MAX is not a compile-time constant, so we can't use it for an array 
+        variable's dimensions (we could use it with malloc, but it is almost certainly
+        longer than we need)
+
+
+Processes
+---------
+
+"process" vs "program"
+
+    a "program" is a long list of instructions
+    a "process" is an activity that executes those instructions
+        -> state
+            - current instruction being executed
+            - values of variables (the stack)
+            - context of current function (the stack)
+            - other dynamic data (the heap, writable global area)
+        -> in other words: program + memory + instruction pointer + CPU state
+
+multiple processes can run the same program
+one process can change the program it executes
+
+On Unix, each process has an id (PID, or process ID)
+
+the command ps list running processes
+
+    ps     - list processes in my current login session
+    ps -e  - list all processes on the machine
+    ps -f  - list processes with the path to their program
+    
+the command top lists processes and sorts them by activity
+    (it lists the "top" processes in terms of resource usage)
+    
+    top will update every second or so and refresh the listing
+
+
+what does the OS need to know about a process?
+    - PID
+    - what program is it running
+    - program counter / CPU state
+    - contents of memory
+
+

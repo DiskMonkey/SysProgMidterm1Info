@@ -1,0 +1,184 @@
+CS 214 / 2023-02-15
+===================
+
+Posix file IO interface
+
+int open(char *pathname, int flags);
+int open(char *pathname, int flags, mode_t mode);
+
+flags are:
+	O_RDONLY
+	O_WRONLY
+	O_RDWR
+	
+combine using | with
+	O_CREAT - create file if it does not exist (*requires third parameter)
+	O_TRUNC - truncate file on close (effectively overwrites file if it exists)
+	O_EXCL  - fail if the file already exists
+	O_APPEND  - start writing at the end of the file
+	O_NONBLOCK - open file in non-blocking mode (doesn't matter much for files)
+
+the mode specifies access permissions for the file (when creating it)
+
+3 kinds of permission
+	r - read access
+	w - write access
+	x - execute access (e.g., running a program or reading a directory)
+
+3 categories of account
+	u - user, the owner of the file
+	g - group (excluding the owner)
+	o - others (excluding the owner and group)
+	
+note: we have 3 bits for each category 
+	-> we can use octal digits to specify permissions
+	
+	rwx
+	101100100  -> 544
+
+the chmod command can use octal representations, or abbreviations		
+	chmod a+r    ; "a" means all three of u, g, and o  
+	chmod o-w
+
+for the mode parameter, you can provide an integer literal
+	or combine several constants from fcntl.h
+
+	open("myfile.txt", O_WRONLY|O_CREAT|O_TRUNC, 0600);
+	
+	open("myfile.txt", O_WRONLY|O_CREAT|O_TRUNC, S_IRUSR|S_IWUSR);
+	
+		-> there are several constants defined in fcntl.h
+			S_I RWX USR,GRP,OTH
+			
+open returns
+	a non-negative integer on success (the file descriptor)
+	-1 on failure (and sets errno)
+	
+int close(int fd);
+	closes the specified file
+	returns 
+		0 for success
+		-1 for failure (and sets errno)
+
+file descriptors may or may not be reused after files are closed,
+so don't make any assumptions about what numbers are associated with what files
+
+
+ssize_t read(int fd, void *buffer, size_t buffer_length);
+
+	only usable with files that are opened for reading
+	
+	writes up to buffer_length bytes to memory starting at buffer
+	returns
+		the number of bytes read (positive integer)
+		 0 - the file has ended
+		-1 - error (and sets errno)
+
+blocking and non-blocking IO
+
+-> how should a program behave it it needs input, but no input is ready yet?
+
+two possibilities
+	- wait until data becomes available  (blocking)
+	- do something else and check again later  (polling)
+
+blocking IO can lead to non-responsive programs
+	-> can't respond to user inputs, because waiting for IO to resolve
+	
+polling can lead to wasted effort
+	-> can't do anything useful, so have to keep checking
+	
+we can design hybrid systems, using multi-threading or signals
+
+
+by default, open() will open files in blocking mode
+	-> read() will block when data is not yet available
+	
+	when we call read, one of three things will happen
+	- if data is available, it will return that data immediately
+	- if data is not available but the stream is open, read will block until
+		data becomes available
+	- if no data is available and the stream is not open, read returns 0
+	
+in non-blocking mode, read() behaves differently
+	when data is not available but the stream is still open, read
+		returns -1 and sets errno to EAGAIN or EWOULDBLOCK
+		
+	non-blocking mode creates some work for the programmer
+		-> how often do you call read()?
+		-> when read says data isn't available yet, how long do you wait to 
+			call it again?
+	-> you won't need it for this class
+
+
+
+ssize_t write(int fd, void *buffer, size_t buffer_length);
+
+	-> only available for files open for writing
+	-> writes up to the specified number of bytes to the file
+	-> returns the number of bytes written, or -1 on error (and sets errno)
+	
+	note that write() may not write all the bytes you asked it to write
+	-> it can even write zero bytes!
+		the file might have closed, or the disk might be full, or the
+		network connection might be rate-limited
+
+	in general, you should check whether write() wrote everything
+	
+
+
+how to use read() effectively
+
+for text files, choose a convenient buffer size and fill it repeatedly
+
+char buffer[BUFSIZE];
+int fd = open(...);
+// check whether fd is -1
+
+int bytes = read(fd, buffer, BUFSIZE);
+while (bytes > 0) {
+	for (i = 0; i < bytes; i++) {
+		// do stuff with buffer[i]
+		if (buffer[i] == ' ') ++spacesCount;
+	}
+
+	bytes = read(fd, buffer, BUFSIZE);
+}
+if (bytes == -1) {
+	// error
+}
+
+alternatively, we can avoid having two calls to read():
+
+while ((bytes = read(fd, buffer, BUFSIZE)) > 0) {
+	for (i = 0; i < bytes; i++) {
+		...
+	}
+}
+
+	// note the use of = inside the while loop condition
+
+
+
+
+off_t lseek(int fd, off_t offset, int whence);
+
+	moves the current location in the file by an offset
+	
+	whence says whether the offset is from the start, current position, or end
+		SEEK_SET  (offset from start)
+		SEEK_CUR  (offset from current position)
+		SEEK_END  (offset from end)
+		
+	you can seek past the end of the file, but not before the start
+	
+	lseek(my_file_d, 0, SEEK_SET)  <- goes to start of file
+	lseek(my_file_d, -1, SEEK_CUR) <- goes back 1 byte from current position
+	lseek(my_file_d, 1, SEEK_END)  <- goes 1 byte past end of file
+
+
+
+lseek() is not available for all files (typically only files on disk)
+
+
+

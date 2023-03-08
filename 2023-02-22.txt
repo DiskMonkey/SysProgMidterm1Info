@@ -1,0 +1,163 @@
+CS 214 / 2023-02-22
+===================
+
+Midterm
+    Monday, March 6 (probably)
+    In class
+    Mixture of short answer and short coding questions
+    You may bring one page of notes
+
+Project II
+    Expected to be posted Monday, Feb 27; due Monday, March 27
+    Writing a simple command-line shell
+
+File system basics
+------------------
+
+data on a disk or other storage device is divided into blocks
+two important kinds
+    index blocks (inodes) 
+    data blocks
+    
+inodes store information about a file (metadata)
+data blocks store the content of the file (data)
+
+inodes are referenced by index number
+    the inode portion of the disk is essentially an array
+        -> constant time access
+        -> size fixed at file system creation
+        -> all elements have the same size
+
+data blocks are referenced by "block pointers" (essentially numbers)
+
+a file is made up of many blocks
+
+constraints
+    - fixed inode size
+    - want (approximate) constant-time access to file offsets
+    - need to allow very large files
+    - don't want to waste space for small files
+
+solution:
+    direct and indirect block references
+    
+    an inode contains 15 block pointers (typically)
+    12 direct pointers
+    1 single indirect pointer
+        -> points to a data block containing pointers to the next few blocks
+    1 double indirect pointer
+        -> points to a data block containing pointers to blocks containing
+            pointers to blocks
+    1 triple indirect pointer
+
+
+Working with directories
+------------------------
+
+note that the inode does not store the file's name!
+
+file names are stored in the directory tree
+
+    a directory is a special file that stores a list of
+        name/index numbers for the files it contains
+    
+    the tree aspect is because directories can contain other directories
+    
+a file's name is the name listed for it in a directory
+the pathname for a file is the names of all its parent directories up to the root
+
+    /dir/subdir/subsubdir/subsubsubdir/file
+    
+the path tells us how to find a file, starting from the root directory
+
+
+we say that a file contained in a directory is "linked"
+    files can be linked more than once!
+    
+when we delete a file, we unlink it
+    -> when the number of links reaches 0, the FS marks the file not in use
+    
+
+the command ln creates new links for existing files
+
+    ln <existing file> <new name>
+    
+this is sometimes called a "hard" link
+
+
+Unix also has "soft" or "symbolic" links
+-> these contain the name of another file
+-> they are usually treated the same as the file they point to
+
+    ln -s <existing file> <new link>
+
+both regular and symbolic links are useful in different circumstances
+
+directories can only have symbolic links, except in controlled circumstances
+
+-> every directory contains two special entries
+
+    "."  -> links to the directory itself
+    ".." -> links to the directory's parent (except for /)
+
+
+
+consider /foo and /foo/bar
+
+[directory 0, linked 3 times: "/"]
+    ".", 0
+    "..", 0
+    "foo", 1
+
+[directory 1, linked 3 times, "/foo"]
+    ".", 1
+    "..", 0
+    "bar", 2
+    "quux", 3
+
+[directory 2, linked 2 times: "/foo/bar"]
+    ".", 2
+    "..", 1
+    "baz", 3
+    "spam", 4
+
+[file 3, linked 2 times: "/foo/quux" and "/foo/bar/baz"]
+[file 4, linked 1 time: "/foo/bar/spam"]
+
+
+cd ../..
+
+
+DIR *opendir(char *directory_path)
+    -> returns NULL and sets errno on error
+
+struct direct *readdir(DIR *directory_pointer)
+    -> returns NULL at end of directory
+    -> the struct is managed by readdir; we should not free it
+    -> we cannot use an old entry once we call readdir() again
+
+int closedir(DIR *directory_pointer)
+    -> returns 0 for success
+
+
+
+how can we learn about directory entries?
+
+    struct dirent is guaranteed to have
+        d_name  ->  the name of a file (not the path!)
+        
+    will usually have
+        d_ino   -> the index number of the file
+        
+    will often have
+        d_type  -> the file system type of the file (directory, regular file, etc.)
+    
+we can use stat() to get more information about a file
+
+
+
+The working directory
+---------------------
+
+Processes and sub-processes
+---------------------------

@@ -1,0 +1,90 @@
+CS 214 / 2023-02-20
+===================
+
+File IO
+-------
+
+use of read() in a loop
+    inner loop to run through buffer
+    
+when reading variable-length data, be aware:
+    more than one record/token/line may be in the buffer
+    record/token/line may be split between buffers
+
+when reading from a file, read() will (almost) always give the requested
+amount of data without blocking
+
+read() can block when reading from standard input, or a socket or pipe
+    -> read() will block when it has given us all the available data and
+        must wait for more data to arrive
+    -> requesting data at an inappropriate moment may lead to your program 
+        blocking unexpectedly
+
+
+File systems
+------------
+
+the file system is where files live
+-> store files
+-> find files
+-> get the data in a file
+-> write data to a file
+
+how do we refer to a file?
+-> at the UI level, we refer to files by name
+
+    specifically, pathnames
+    
+    a pathname says how to find a file, starting from the root of the directory
+    tree
+    
+    /usr/bin/perl
+    
+    -> initial slash indicates the root of the directory tree
+    -> main directory usr
+        sub directory bin
+        file is perl
+        
+    paths can be short (/) or long
+    -> directories can be nested with no real limits
+    
+    a directory (or folder) is a list of things contained in the directory
+        -> files
+        -> other directories
+    
+-> at the OS/file system level, by number
+    each file has a unique index number
+    
+    faster to use than a variable-length name
+    doesn't require traversing a directory tree for access
+    
+
+how are files stored on disk?
+-> at the user (programmer) level, a file is a stream of bytes
+
+-> the file system doesn't want to store a file in a single contiguous chunk
+    -> many files (e.g. logs) need to grow
+    -> unlike realloc(), we don't want to copy data if we can avoid it
+        -> copying data is slow
+        -> we don't want to wear out the storage medium by writing too much
+    -> instead, we divide files into blocks, which may be located anywhere
+        on the disk
+        
+how can we tell which blocks hold the data for a file?
+-> in particular, how can we quickly find specific offsets in a file?
+
+we don't want to use a linked list structure, because seek time is proportional
+to the location in the file
+    -> use an array of "block pointers" that indicate which blocks on disk
+        contain the file's data
+    -> but how big should the array be?
+
+we want to be able to store very large files
+
+we want to have lots of small files without wasting too much space
+
+we want the metadata for each file to have a fixed size
+    -> allows us to quickly find the metadata based on the file's index
+    
+    
+how can we meet these requirements? answers on Wednesday!
